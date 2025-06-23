@@ -58,5 +58,11 @@ services:
     volumes:
       - /C/go-micro/project/db-data/mongo:/data/db
 
+  mailhog:
+    image : 'mailhog/mailhog:latest'
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+      
 # volumes:
 #   postgres_data:
