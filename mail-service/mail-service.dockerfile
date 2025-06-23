@@ -9,12 +9,13 @@ RUN go mod download
 # Copy the rest of the source code
 COPY . .
 
-RUN CGO_ENABLED=0 go build -o brokerApp ./cmd/api
+RUN CGO_ENABLED=0 go build -o mailerApp ./cmd/api
 
 FROM alpine:latest
 
 WORKDIR /app
 
-COPY --from=builder /app/brokerApp .
+COPY --from=builder /app/mailerApp .
+COPY --from=builder /app/templates ./templates
 
-CMD ["/app/brokerApp"]
+CMD ["/app/mailerApp"]
