@@ -12,6 +12,14 @@ services:
       mode: replicated
       replicas: 1
   
+  logger-service:
+    build: 
+      context: ./../logger-service
+      dockerfile: ./../logger-service/logger-service.dockerfile
+    restart: always
+    deploy:
+      mode: replicated
+      replicas: 1
   authentication-service:
     build:
       context: ./../authentication-service
@@ -36,7 +44,19 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: users
     volumes:
-     - postgres_data:/var/lib/postgresql/data/
+     - /C/go-micro/project/db-data/postgres:/var/lib/postgresql/data/
 
-volumes:
-  postgres_data:
+  mongo:
+    image: 'mongo:4.2.16-bionic'
+    ports:
+      - "27017:27017"
+    restart: always
+    environment:
+      MONGO_INITDB_DATABASE: logs
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - /C/go-micro/project/db-data/mongo:/data/db
+
+# volumes:
+#   postgres_data:
