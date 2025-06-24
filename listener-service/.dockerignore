@@ -1,0 +1,16 @@
+# Ignore the following files and directories
+.git
+.gitignore
+.vscode
+.idea
+*.swp
+*.log
+*.md
+*.env
+*.env.*
+coverage.out
+bin/
+build/
+vendor/
+.DS_Store
+Thumbs.db
