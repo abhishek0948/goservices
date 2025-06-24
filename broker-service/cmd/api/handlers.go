@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+
+	"github.com/abhishek0948/goservices/broker-service/event"
 )
 
 type RequestPayload struct {
@@ -55,7 +57,10 @@ func (app *Config) HandleSubmission(w http.ResponseWriter, r *http.Request) {
 	case "auth":
 		app.authenticate(w, requestPayload.Auth)
 	case "log":
-		app.logItem(w,requestPayload.Log)
+		// Without RabbitMQ 
+		// app.logItem(w,requestPayload.Log)
+		// For Rabbit
+		app.logEventViaRabbit(w,requestPayload.Log)
 	case "mail":
 		app.sendMail(w,requestPayload.Mail)
 	default:
@@ -177,4 +182,39 @@ func (app *Config) authenticate(w http.ResponseWriter, a AuthPayload) {
 	payload.Data = jsonFromService.Data
 
 	app.writeJSON(w, http.StatusAccepted, payload)
+}
+
+// RabbitMQ function
+func (app *Config) logEventViaRabbit(w http.ResponseWriter,l LogPayLoad) {
+	err := app.pushToQueue(l.Name,l.Data)
+	if err != nil  {
+		app.errorJSON(w,err);
+		return 
+	}
+
+	var payload jsonResponse
+	payload.Error = false
+	payload.Message = "logged via RabbitMQ"
+
+	app.writeJSON(w,http.StatusAccepted,payload);
+}
+
+func (app *Config) pushToQueue(name,msg string) error {
+	emitter,err := event.NewEventEmitter(app.Rabbit)
+	if err != nil {
+		return err
+	}
+
+	payload := LogPayLoad {
+		Name : name,
+		Data : msg,
+	}
+
+	j,_ := json.MarshalIndent(&payload,"","\t");
+	err = emitter.Push(string(j),"log.INFO");
+	if err!= nil {
+		return err
+	}
+
+	return nil
 }
