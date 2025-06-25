@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/rpc"
 
 	"github.com/abhishek0948/goservices/broker-service/event"
 )
@@ -60,7 +61,9 @@ func (app *Config) HandleSubmission(w http.ResponseWriter, r *http.Request) {
 		// Without RabbitMQ 
 		// app.logItem(w,requestPayload.Log)
 		// For Rabbit
-		app.logEventViaRabbit(w,requestPayload.Log)
+		// app.logEventViaRabbit(w,requestPayload.Log)
+		// For RPC
+		app.logItemViaRPC(w,requestPayload.Log)
 	case "mail":
 		app.sendMail(w,requestPayload.Mail)
 	default:
@@ -68,6 +71,7 @@ func (app *Config) HandleSubmission(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// WithRabbit or RPC
 func (app *Config) logItem(w http.ResponseWriter,entry LogPayLoad) {
 	jsonData, err := json.MarshalIndent(entry, "", "\t")
 	if err != nil {
@@ -100,6 +104,74 @@ func (app *Config) logItem(w http.ResponseWriter,entry LogPayLoad) {
 	var payload jsonResponse
 	payload.Error = false
 	payload.Message = "Log Successful"
+
+	app.writeJSON(w,http.StatusAccepted,payload);
+}
+
+// RabbitMQ function
+func (app *Config) logEventViaRabbit(w http.ResponseWriter,l LogPayLoad) {
+	err := app.pushToQueue(l.Name,l.Data)
+	if err != nil  {
+		app.errorJSON(w,err);
+		return 
+	}
+
+	var payload jsonResponse
+	payload.Error = false
+	payload.Message = "logged via RabbitMQ"
+
+	app.writeJSON(w,http.StatusAccepted,payload);
+}
+
+func (app *Config) pushToQueue(name,msg string) error {
+	emitter,err := event.NewEventEmitter(app.Rabbit)
+	if err != nil {
+		return err
+	}
+
+	payload := LogPayLoad {
+		Name : name,
+		Data : msg,
+	}
+
+	j,_ := json.MarshalIndent(&payload,"","\t");
+	err = emitter.Push(string(j),"log.INFO");
+	if err!= nil {
+		return err
+	}
+
+	return nil
+}
+
+type RPCPayload struct {
+	Name string
+	Data string
+}
+
+// With RPC
+func (app *Config) logItemViaRPC(w http.ResponseWriter,l LogPayLoad) {
+	client,err := rpc.Dial("tcp","logger-service:5001");
+	if err != nil {
+		app.errorJSON(w,err);
+		return ;
+	}
+
+	rpcPayload := RPCPayload{
+		Name: l.Name,
+		Data: l.Data,
+	}
+
+	var result string
+	err = client.Call("RPCServer.LogInfo",rpcPayload,&result);
+	if err != nil {
+		app.errorJSON(w,err)
+		return
+	}
+
+	payload := jsonResponse {
+		Error: false,
+		Message: result,
+	}
 
 	app.writeJSON(w,http.StatusAccepted,payload);
 }
@@ -184,37 +256,3 @@ func (app *Config) authenticate(w http.ResponseWriter, a AuthPayload) {
 	app.writeJSON(w, http.StatusAccepted, payload)
 }
 
-// RabbitMQ function
-func (app *Config) logEventViaRabbit(w http.ResponseWriter,l LogPayLoad) {
-	err := app.pushToQueue(l.Name,l.Data)
-	if err != nil  {
-		app.errorJSON(w,err);
-		return 
-	}
-
-	var payload jsonResponse
-	payload.Error = false
-	payload.Message = "logged via RabbitMQ"
-
-	app.writeJSON(w,http.StatusAccepted,payload);
-}
-
-func (app *Config) pushToQueue(name,msg string) error {
-	emitter,err := event.NewEventEmitter(app.Rabbit)
-	if err != nil {
-		return err
-	}
-
-	payload := LogPayLoad {
-		Name : name,
-		Data : msg,
-	}
-
-	j,_ := json.MarshalIndent(&payload,"","\t");
-	err = emitter.Push(string(j),"log.INFO");
-	if err!= nil {
-		return err
-	}
-
-	return nil
-}
